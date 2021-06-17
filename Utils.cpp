@@ -30,7 +30,7 @@ auto MakeSignature(const std::string_view& fmt_string) {
 	constexpr auto read_byte = [&](std::vector<unsigned char>& sig_bytes, std::vector<char>& mask,
 		                           std::string_view& s, const int offs) {
 		if (s == "??") {
-			mask.push_back(NULL);
+			mask.push_back('?');
 			sig_bytes.push_back(0);
 		} else {
 			mask.push_back('x');
@@ -96,4 +96,66 @@ void ReleaseControl() {
 	fclose(stdout);
 	fclose(stderr);
 	FreeConsole();
+}
+
+void EnableRelaxMisses(char* texture_base_ptr, char* audio_base_ptr) {
+	// enable miss texture for rx & ap
+	char* rx_texture_ptr = texture_base_ptr + 10;
+	char* ap_texture_ptr = texture_base_ptr + 23;
+
+	*rx_texture_ptr = 0x02;
+	*(rx_texture_ptr + 2) = 0x84;
+	*ap_texture_ptr = 0x02;
+	*(ap_texture_ptr + 2) = 0x84;
+
+	// enable combobreak audio for rx & ap
+	char* rx_audio_ptr = audio_base_ptr + 10;
+	char* ap_audio_ptr = audio_base_ptr + 23;
+
+	*rx_audio_ptr = 0x02;
+	*(rx_audio_ptr + 2) = 0x84;
+	*ap_audio_ptr = 0x02;
+	*(ap_audio_ptr + 2) = 0x84;
+}
+
+void EnableRelaxFailure(char* fail_base_ptr) {
+	// enable failure for rx & ap
+	char* rx_fail_ptr = fail_base_ptr + 4;
+	char* ap_fail_ptr = fail_base_ptr + 13;
+
+	*rx_fail_ptr = 0x02;
+	*(rx_fail_ptr + 1) = 0x74;
+	*ap_fail_ptr = 0x02;
+	*(ap_fail_ptr + 1) = 0x74;
+}
+
+void DisableRelaxMisses(char* texture_base_ptr, char* audio_base_ptr) {
+	// disable miss texture for rx & ap
+	char* rx_texture_ptr = texture_base_ptr + 10;
+	char* ap_texture_ptr = texture_base_ptr + 23;
+
+	*rx_texture_ptr = 0x00;
+	*(rx_texture_ptr + 2) = 0x85;
+	*ap_texture_ptr = 0x00;
+	*(ap_texture_ptr + 2) = 0x85;
+
+	// disable combobreak audio for rx & ap
+	char* rx_audio_ptr = audio_base_ptr + 10;
+	char* ap_audio_ptr = audio_base_ptr + 23;
+
+	*rx_audio_ptr = 0x00;
+	*(rx_audio_ptr + 2) = 0x85;
+	*ap_audio_ptr = 0x00;
+	*(ap_audio_ptr + 2) = 0x85;
+}
+
+void DisableRelaxFailure(char* fail_base_ptr) {
+	// disable failure for rx & ap
+	char* rx_fail_ptr = fail_base_ptr + 4;
+	char* ap_fail_ptr = fail_base_ptr + 13;
+
+	*rx_fail_ptr = 0x00;
+	*(rx_fail_ptr + 1) = 0x75;
+	*ap_fail_ptr = 0x00;
+	*(ap_fail_ptr + 1) = 0x75;
 }

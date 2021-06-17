@@ -33,6 +33,7 @@ std::unordered_map<std::string_view, Command> commands {
 		for (const auto& cmd : commands)
 			std::cout << cmd.first << ": " << cmd.second.description << std::endl;
 	})},
+
 #if CMYUI_BUILD
 	{"time", Command("Show current in-map time", [](Context& ctx) {
 		uintptr_t audio_base = FindSignature("56 83 ec 38 83 3d", 6);
@@ -61,46 +62,48 @@ std::unordered_map<std::string_view, Command> commands {
 			std::cout << "Not Found" << std::endl;
 	})},
 #endif
-	{"rxm", Command("Toggle relax misses", [](Context& ctx) {
-		if (ctx.args.size() == 1) {
-			char* base_ptr = reinterpret_cast<char*>(FindSignature("89 45 b8 81 7d f0 00 00 fe ff 0f 85", 12));
-			if (base_ptr != NULL) {
-				char* rx_ptr = base_ptr + 10;
-				char* ap_ptr = base_ptr + 23;
 
-				const bool enabled = *rx_ptr == 2 && *ap_ptr == 2;
+	{"rx", Command("Toggle relax settings (misses/failing)", [](Context& ctx) {
+		if (ctx.args.size() != 0) {
+			bool show_misses = false;
+			bool allow_fail = false;
 
-				// skip the condition by swapping out the compare with 0 to 2, and the jne to je, to make it impossible.
-				// more efficient soln it to nop the whole section out & save the bytes for replacement.
-				if (ctx.args[0] == "enable") {
-					if (enabled) {
-						*rx_ptr = 0x02;
-						*(rx_ptr + 2) = 0x84;
-						*ap_ptr = 0x02;
-						*(ap_ptr + 2) = 0x84;
-						std::cout << "Misses will be shown." << std::endl;
-					}
-					else
-						std::cout << "No changes made." << std::endl;
-				}
-				else if (ctx.args[0] == "disable") {
-					if (enabled){
-						*rx_ptr = 0x00;
-						*(rx_ptr + 2) = 0x85;
-						*ap_ptr = 0x00;
-						*(ap_ptr + 2) = 0x85;
-						std::cout << "Misses will be hidden." << std::endl;
-					}
-					else
-						std::cout << "No changes made." << std::endl;
-				}
-				else if (ctx.args[0] == "check") {
-					std::cout << "Misses currently " << (enabled ? "Shown" : "Hidden") << "." << std::endl;
-				}
-				else
-					std::cout << "Unknown subcommand \"" << ctx.args[0] << "\"." << std::endl;
-			} else
-				std::cout << "Failed to find rxm base" << std::endl;
+			for (const auto& arg : ctx.args) {
+				if (arg == "miss")
+					show_misses = true;
+				else if (arg == "fail")
+					allow_fail = true;
+			}
+
+			char* texture_base_ptr = reinterpret_cast<char*>(FindSignature("89 45 b8 81 7d f0 00 00 fe ff 0f 85", 12));
+			if (texture_base_ptr == NULL) {
+				std::cout << "Please click atleast a single hitcircle before loading." << std::endl;
+				return;
+			}
+			
+			char* audio_base_ptr = reinterpret_cast<char*>(FindSignature("8b 48 34 8b 01 8b 40 28 ff 50 10 83 f8 14 0f 8e", 16));
+			char* fail_base_ptr = reinterpret_cast<char*>(FindSignature("8b 50 1c 8b 4a 04 8b 7a 08 ff 72 0c 8b d7 ff 15 ?? ?? ?? ?? 83 e0 01 85 c0 0f 8f 82 00 00 00 80 3d", 33));
+
+			bool misses_currently_enabled = *(texture_base_ptr + 10) == 2;
+			bool failure_currently_enabled = *(fail_base_ptr + 4) == 2;
+
+			if (show_misses)
+				if (!misses_currently_enabled)
+					EnableRelaxMisses(texture_base_ptr, audio_base_ptr);
+				//else
+				//	std::cout << "Misses already enabled." << std::endl;
+			else
+				if (misses_currently_enabled)
+					DisableRelaxMisses(texture_base_ptr, audio_base_ptr);
+
+			if (allow_fail)
+				if (!failure_currently_enabled)
+					EnableRelaxFailure(fail_base_ptr);
+				//else
+				//	std::cout << "Failure already enabled." << std::endl;
+			else
+				if (failure_currently_enabled)
+					DisableRelaxFailure(fail_base_ptr);
 		} else
 			std::cout << "Invalid syntax; correct: !rxm <enable/disable/check>" << std::endl;
 	})}
