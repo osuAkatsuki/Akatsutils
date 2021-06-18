@@ -27,14 +27,13 @@ auto MakeSignature(const std::string_view& fmt_string) {
 
 	// TODO since it's always 2 bytes we can get a lot better efficiency.
 	//      if we instead want to go the generic route, we can use ExplodeView.
-	constexpr auto read_byte = [&](std::vector<unsigned char>& sig_bytes, std::vector<char>& mask,
-		                           std::string_view& s, const int offs) {
-		if (s == "??") {
-			mask.push_back('?');
-			sig_bytes.push_back(0);
-		} else {
+	constexpr auto read_byte = [&](std::vector<unsigned char>& sig_bytes, std::vector<char>& mask, std::string_view& s, const int offs) {
+		if (s != "??") { // known byte
 			mask.push_back('x');
 			sig_bytes.push_back(std::stoi(s.data(), nullptr, 16));
+		} else { // unknown (wildcard) byte
+			mask.push_back('?');
+			sig_bytes.push_back(0);
 		}
 	};
 
@@ -57,7 +56,7 @@ const uintptr_t FindSignature(const std::string_view& fmt_string, const int ptr_
 
 	MEMORY_BASIC_INFORMATION32 mbi;
 	LPCVOID end_addr = 0;
-	
+
 	while (VirtualQuery(end_addr, reinterpret_cast<PMEMORY_BASIC_INFORMATION>(&mbi), sizeof(mbi)) != 0) {
 		end_addr = reinterpret_cast<LPCVOID>(mbi.BaseAddress + mbi.RegionSize);
 
@@ -82,20 +81,6 @@ const uintptr_t FindSignature(const std::string_view& fmt_string, const int ptr_
 		}
 	}
 	return NULL;
-}
-
-void TakeControl() {
-	AllocConsole();
-	freopen_s(reinterpret_cast<FILE**>(stdin), "CONIN$", "r", stdin);
-	freopen_s(reinterpret_cast<FILE**>(stdout), "CONOUT$", "w", stdout);
-	freopen_s(reinterpret_cast<FILE**>(stderr), "CONOUT$", "w", stderr);
-}
-
-void ReleaseControl() {
-	fclose(stdin);
-	fclose(stdout);
-	fclose(stderr);
-	FreeConsole();
 }
 
 void EnableRelaxMisses(char* texture_base_ptr, char* audio_base_ptr) {
@@ -158,4 +143,33 @@ void DisableRelaxFailure(char* fail_base_ptr) {
 	*(rx_fail_ptr + 1) = 0x75;
 	*ap_fail_ptr = 0x00;
 	*(ap_fail_ptr + 1) = 0x75;
+}
+
+StlTimer::StlTimer() {
+	st = std::chrono::high_resolution_clock::now();
+}
+
+StlTimer::~StlTimer() {
+	auto ns_taken = (std::chrono::high_resolution_clock::now() - st).count();
+	std::cout << ns_taken << " nsec" << std::endl;
+}
+
+Win32Timer::Win32Timer() {
+	QueryPerformanceCounter(&st);
+}
+
+Win32Timer::~Win32Timer() {
+	LARGE_INTEGER et;
+	QueryPerformanceCounter(&et);
+	auto counts_taken = et.QuadPart - st.QuadPart;
+	std::cout << counts_taken << " counts" << std::endl;
+}
+
+CpuTimer::CpuTimer() {
+	st = __rdtsc();
+}
+
+CpuTimer::~CpuTimer() {
+	auto cycles_taken = __rdtsc() - st;
+	std::cout << cycles_taken << " cycles" << std::endl;
 }
